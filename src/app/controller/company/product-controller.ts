@@ -3,7 +3,7 @@ import AuthenticateMidlleware from "../../middlewares/auth-midlleware";
 import ProductService from "../../service/company/product-service";
 import { myJwtPayload } from "../../interfaces/i-auth/i-auth";
 import { SuccessResponse } from "../../utils/success-response";
-import { listSchema, listSchemaProducts } from "../../validations/company/product/list";
+import { listSchema, listSchemaProducts } from "../../validations/company/product/List";
 import { setStatus } from "../../validations/company/product/set-status";
 import { IProductOutput, IProductsReturn } from "../../interfaces/i-product/i-product";
 import { Schema } from "yup";

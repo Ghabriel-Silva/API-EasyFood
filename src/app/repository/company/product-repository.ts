@@ -3,9 +3,10 @@ import { Products } from "../../entity/Products";
 import { AppDataSource } from "../../../database/dataSource";
 import { myJwtPayload } from "../../interfaces/i-auth/i-auth";
 import { IProduct, IProductsReturn, IProductStatus } from "../../interfaces/i-product/i-product";
-import { listSchema } from "../../validations/company/product/list";
 import { Company } from "../../entity/Company";
 import { Category } from "../../entity/Category";
+import { listSchema } from "../../validations/company/product/List";
+import { IDashboardInput } from "../../interfaces/i-dashboard/dashbordInput";
 
 
 
@@ -140,7 +141,6 @@ export class ProductRepository {
 
         const totalPages = limit ? Math.ceil(total / limit) : 1;
 
-
         return {
             data: products,
             frete: frete,
@@ -150,5 +150,13 @@ export class ProductRepository {
             total,
             totalPages
         } as IProductsReturn
+    }
+
+    async dataDashboard(data: IDashboardInput) {
+        const dataUser = this.productRepository
+            .createQueryBuilder("products")
+            .where("company.id = :id", { id: data.id })
+
+        return dataUser
     }
 }

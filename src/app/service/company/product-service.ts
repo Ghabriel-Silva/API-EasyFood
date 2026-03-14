@@ -6,7 +6,7 @@ import ErrorExtension from "../../utils/error-extension";
 import { myJwtPayload } from "../../interfaces/i-auth/i-auth";
 import { mapProductToOutput } from "../../utils/products/products";
 import { Products } from "../../entity/Products";
-import { listSchema, listSchemaProducts } from "../../validations/company/product/list";
+import { listSchema, listSchemaProducts } from "../../validations/company/product/List";
 import { setStatus, setStatusSchema } from "../../validations/company/product/set-status";
 import { getFilterCompanyCache, setCompanyFilterCache } from "../../../cache/company/products-cache"
 import { invalidateCache } from "../../../cache/company/utils/invalidateCache";
