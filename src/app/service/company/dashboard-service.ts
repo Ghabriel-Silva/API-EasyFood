@@ -26,6 +26,7 @@ export default class dashboardService {
             ...date
         }
         const productsData = await this.productsRepo.dataDashboard(dataUserAndDate)
+        
         console.log(productsData)
         return productsData
     }

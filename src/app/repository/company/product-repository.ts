@@ -7,14 +7,17 @@ import { Company } from "../../entity/Company";
 import { Category } from "../../entity/Category";
 import { listSchema } from "../../validations/company/product/List";
 import { IDashboardInput } from "../../interfaces/i-dashboard/dashbordInput";
+import { OrderItem } from "../../entity/OrderItem";
 
 
 
 export class ProductRepository {
     private productRepository: Repository<Products>
+    private orderItemRepo: Repository<OrderItem>
 
     constructor() {
         this.productRepository = AppDataSource.getRepository(Products)
+        this.orderItemRepo = AppDataSource.getRepository(OrderItem)
     }
 
 
@@ -153,10 +156,51 @@ export class ProductRepository {
     }
 
     async dataDashboard(data: IDashboardInput) {
-        const dataUser = this.productRepository
-            .createQueryBuilder("products")
-            .where("company.id = :id", { id: data.id })
+        try {
+            const kips = await this.productRepository
+                .createQueryBuilder("products")
+                .select("COUNT(products.id)", "products_total")
+                .addSelect(`SUM(CASE WHEN  products.isAvailable = TRUE THEN 1 ELSE 0 END)`, 'products_active')
+                .addSelect(`SUM(CASE WHEN  products.isAvailable = FALSE THEN 1 ELSE 0 END)`, "products_inactive")
+                .addSelect(`SUM(CASE WHEN products.quantity = 0 THEN 1 ELSE 0 END)`, "products_negative_quantity")
+                .where("products.company_id = :id", { id: data.id })
+                .getRawOne()
 
-        return dataUser
+            const topProducts = await this.orderItemRepo
+                .createQueryBuilder("item")
+                .select("product.id", "id")
+                .addSelect("product.name", "name")
+                .addSelect("SUM(item.quantity)", "totalSold")
+                .innerJoin("item.product", "product")
+                .innerJoin("product.company", "company")
+                .where("company.id = :companyId", { companyId: data.id })
+                .groupBy("product.id")
+                .orderBy("totalSold", "DESC")
+                .limit(5)
+                .getRawMany()
+
+            const lowProducts = await this.orderItemRepo
+                .createQueryBuilder("item")
+                .select("product.id", "id")
+                .addSelect("product.name", "name")
+                .addSelect("SUM(item.quantity)", "totalSold")
+                .innerJoin("item.product", "product")
+                .innerJoin("product.company", "company")
+                .where("company.id = :companyId", { companyId: data.id })
+                .groupBy("product.id")
+                .orderBy("totalSold", "ASC")
+                .limit(5)
+                .getRawMany();
+
+
+            return {
+                ...kips,
+                topProducts,
+               lowProducts
+            }
+        } catch (err) {
+            console.log(err)
+        }
+
     }
 }
