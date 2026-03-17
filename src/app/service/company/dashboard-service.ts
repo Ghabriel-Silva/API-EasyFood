@@ -21,13 +21,28 @@ export default class dashboardService {
     }
 
     getAllData = async (payloud: myJwtPayload, date: dateInfo) => {
+        console.log('date:', date)
+        const initial = date?.initial
+            ? new Date(date.initial)
+            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        console.log(initial)
+
+        const final = date?.final
+            ? new Date(date.final)
+            : new Date()
+
+        initial.setHours(0, 0, 0, 0)
+        final.setHours(23, 59, 59, 999)
+        
         const dataUserAndDate = {
             ...payloud,
-            ...date
+            initial,
+            final
         }
+
         const productsData = await this.productsRepo.dataDashboard(dataUserAndDate)
-        
-        console.log(productsData)
+
+
         return productsData
     }
 

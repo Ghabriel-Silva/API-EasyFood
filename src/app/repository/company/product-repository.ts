@@ -157,46 +157,72 @@ export class ProductRepository {
 
     async dataDashboard(data: IDashboardInput) {
         try {
-            const kips = await this.productRepository
-                .createQueryBuilder("products")
-                .select("COUNT(products.id)", "products_total")
-                .addSelect(`SUM(CASE WHEN  products.isAvailable = TRUE THEN 1 ELSE 0 END)`, 'products_active')
-                .addSelect(`SUM(CASE WHEN  products.isAvailable = FALSE THEN 1 ELSE 0 END)`, "products_inactive")
-                .addSelect(`SUM(CASE WHEN products.quantity = 0 THEN 1 ELSE 0 END)`, "products_negative_quantity")
-                .where("products.company_id = :id", { id: data.id })
-                .getRawOne()
+            const andWhere = {
 
-            const topProducts = await this.orderItemRepo
-                .createQueryBuilder("item")
-                .select("product.id", "id")
-                .addSelect("product.name", "name")
-                .addSelect("SUM(item.quantity)", "totalSold")
-                .innerJoin("item.product", "product")
-                .innerJoin("product.company", "company")
-                .where("company.id = :companyId", { companyId: data.id })
-                .groupBy("product.id")
-                .orderBy("totalSold", "DESC")
-                .limit(5)
-                .getRawMany()
+            }
+            const [kips, quantityZero, topProducts, lowProducts] = await Promise.all([
+                //Busca produtos validos, produto inativo e ativo e quantidade zero
+                this.productRepository
+                    .createQueryBuilder("product")
+                    .select("COUNT(product.id)", "total")
+                    .addSelect(`SUM(CASE WHEN  product.isAvailable = TRUE THEN 1 ELSE 0 END)`, 'active')
+                    .addSelect(`SUM(CASE WHEN  product.isAvailable = FALSE THEN 1 ELSE 0 END)`, "inactive")
+                    .addSelect(`SUM(CASE WHEN product.quantity = 0 THEN 1 ELSE 0 END)`, "negative_quantity")
+                    .where("product.company_id = :id", { id: data.id })
+                    .getRawOne(),
 
-            const lowProducts = await this.orderItemRepo
-                .createQueryBuilder("item")
-                .select("product.id", "id")
-                .addSelect("product.name", "name")
-                .addSelect("SUM(item.quantity)", "totalSold")
-                .innerJoin("item.product", "product")
-                .innerJoin("product.company", "company")
-                .where("company.id = :companyId", { companyId: data.id })
-                .groupBy("product.id")
-                .orderBy("totalSold", "ASC")
-                .limit(5)
-                .getRawMany();
+                //Busca Produtos que estejam com quantidade zerada em estoque
+                this.productRepository
+                    .createQueryBuilder("product")
+                    .select("product.id", "id")
+                    .addSelect("product.name", "name")
+                    .addSelect("product.uni_medida", "uni_medida")
+                    .addSelect("product.quantity", "quantity")
+                    .where("product.company_id = :companyId", { companyId: data.id })
+                    .andWhere('product.quantity = 0')
+                    .getRawMany(),
 
+                //busca os produtos mais vendidos com base na quantidade vendida e retorna os 5
+                this.orderItemRepo
+                    .createQueryBuilder("item")
+                    .select("product.id", "id")
+                    .addSelect("product.name", "name")
+                    .addSelect("SUM(item.quantity)", "totalSold")
+                    .innerJoin("item.product", "product")
+                    .innerJoin("item.order", "order")
+                    .where("product.company_id = :companyId", { companyId: data.id })
+                    .andWhere("order.created_at BETWEEN :start AND :end", {
+                        start: data.initial,
+                        end: data.final
+                    })
+                    .groupBy("product.id")
+                    .orderBy("totalSold", "DESC")
+                    .limit(5)
+                    .getRawMany(),
 
+                //busca os produtos menos vendidos com base na quantidade vendida e retorna os 5 
+                this.orderItemRepo
+                    .createQueryBuilder("item")
+                    .select("product.id", "id")
+                    .addSelect("product.name", "name")
+                    .addSelect("SUM(item.quantity)", "totalSold")
+                    .innerJoin("item.product", "product")
+                    .innerJoin("item.order", "order")
+                    .where("product.company_id = :companyId", { companyId: data.id })
+                    .andWhere("order.created_at BETWEEN :start AND :end", {
+                        start: data.initial,
+                        end: data.final
+                    })
+                    .groupBy("product.id")
+                    .orderBy("totalSold", "ASC")
+                    .limit(5)
+                    .getRawMany()
+            ])
             return {
-                ...kips,
+                kips,
                 topProducts,
-               lowProducts
+                lowProducts,
+                quantityZero
             }
         } catch (err) {
             console.log(err)
