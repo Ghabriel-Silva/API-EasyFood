@@ -2,11 +2,9 @@ import { NextFunction, Router, Request, Response } from "express";
 import { myJwtPayload } from "../../interfaces/i-auth/i-auth";
 import dashboardService from "../../service/company/dashboard-service";
 import AuthenticateMidlleware from "../../middlewares/auth-midlleware";
+import { QueryTypeDate } from "../../interfaces/i-dashboard/dashbordInput";
 
-interface QueryType {
-    initial: string,
-    final: string
-}
+
 
 class dashboardController {
     public router: Router
@@ -28,7 +26,7 @@ class dashboardController {
             const date = {
                 initial,
                 final,
-            } as QueryType
+            } as QueryTypeDate
 
             const payloud = this.getCompanyFromRequest(req)
             const result = await this.dashbordInfoService.getAllData(payloud, date)

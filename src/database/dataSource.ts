@@ -30,6 +30,7 @@ export const AppDataSource = new DataSource({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     synchronize: false,
+    cache:false,
     logging: false,
     entities: [Company, Category, Products, Order, OrderItem],
     migrations: [

@@ -157,10 +157,7 @@ export class ProductRepository {
 
     async dataDashboard(data: IDashboardInput) {
         try {
-            const andWhere = {
-
-            }
-            const [kips, quantityZero, topProducts, lowProducts] = await Promise.all([
+            const [kipsProducts, quantityZeroProducts, topProducts, lowProducts] = await Promise.all([
                 //Busca produtos validos, produto inativo e ativo e quantidade zero
                 this.productRepository
                     .createQueryBuilder("product")
@@ -198,6 +195,7 @@ export class ProductRepository {
                     .groupBy("product.id")
                     .orderBy("totalSold", "DESC")
                     .limit(5)
+                    .printSql()
                     .getRawMany(),
 
                 //busca os produtos menos vendidos com base na quantidade vendida e retorna os 5 
@@ -216,13 +214,16 @@ export class ProductRepository {
                     .groupBy("product.id")
                     .orderBy("totalSold", "ASC")
                     .limit(5)
-                    .getRawMany()
+                    .printSql()
+                    .getRawMany(),
+
             ])
             return {
-                kips,
+                kipsProducts,
                 topProducts,
                 lowProducts,
-                quantityZero
+                quantityZeroProducts
+      
             }
         } catch (err) {
             console.log(err)

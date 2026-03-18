@@ -1,6 +1,6 @@
 import { Order } from "../../entity/Order";
 import { myJwtPayload } from "../../interfaces/i-auth/i-auth";
-import { dateInfo } from "../../interfaces/i-dashboard/dashbordInput";
+import { dateInfo, QueryTypeDate } from "../../interfaces/i-dashboard/dashbordInput";
 import categoryRepository from "../../repository/company/category-repository";
 import orderItemRepository from "../../repository/company/order-item-repository";
 import orderRepository from "../../repository/company/orders-repository";
@@ -20,30 +20,34 @@ export default class dashboardService {
             this.orderItemRepo = new orderItemRepository()
     }
 
-    getAllData = async (payloud: myJwtPayload, date: dateInfo) => {
-        console.log('date:', date)
+    getAllData = async (payloud: myJwtPayload, date: QueryTypeDate) => {
         const initial = date?.initial
-            ? new Date(date.initial)
-            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-        console.log(initial)
+            ? new Date(`${date.initial}T00:00:00`)
+            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
         const final = date?.final
-            ? new Date(date.final)
-            : new Date()
+            ? new Date(`${date.final}T23:59:59.999`)
+            : new Date();
 
-        initial.setHours(0, 0, 0, 0)
-        final.setHours(23, 59, 59, 999)
-        
+        if (!date?.initial) {
+            initial.setHours(0, 0, 0, 0);
+        }
+        if (!date?.final) {
+            final.setHours(23, 59, 59, 999);
+        }
+
         const dataUserAndDate = {
             ...payloud,
             initial,
             final
         }
-
         const productsData = await this.productsRepo.dataDashboard(dataUserAndDate)
+        const orderData = await this.orderRepo.getDataOrderDashbord(dataUserAndDate)
 
-
-        return productsData
+        return {
+            productsData,
+            orderData
+        }
     }
 
 }

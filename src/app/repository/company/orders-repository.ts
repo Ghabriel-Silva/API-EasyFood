@@ -10,6 +10,7 @@ import { Products } from "../../entity/Products"
 import { SetStatusSchemaOrder } from "../../validations/company/order/set-status"
 import { IFilterOrder, IOrderSetStatus } from "../../interfaces/i-orders/i-orders"
 import { FilterOrderSchema } from "../../validations/company/order/filter"
+import { IDashboardInput } from "../../interfaces/i-dashboard/dashbordInput"
 
 
 
@@ -173,20 +174,74 @@ class orderRepository {
         return orderFilter
     }
 
-    async printOrderId(orderId: string, idCompany:myJwtPayload): Promise<Order | null> {
+    async printOrderId(orderId: string, idCompany: myJwtPayload): Promise<Order | null> {
         return this.orderRepo.findOne({
-            where: { id: orderId ,
-            company: {
-                id: idCompany.id
-            }
-            }, 
+            where: {
+                id: orderId,
+                company: {
+                    id: idCompany.id
+                }
+            },
             relations: [
                 'company',
                 'items',
                 'items.product'
-                
+
             ]
         })
+    }
+
+    async getDataOrderDashbord(Data: IDashboardInput) {
+        //Insight do dia atual idependente se vier ou não com data 
+        //Total de pedido Do dia
+        //Lucro total de todos o periodo
+        //valor total de Hoje
+        //Pedidos completos
+        //Pedidos cancelados
+        //Pedidos em rota
+        //Peidos preparando 
+
+        try {
+            const startOfDay = new Date()
+            startOfDay.setHours(0, 0, 0, 0)
+            const finalOfDay = new Date()
+            finalOfDay.setHours(23, 59, 59, 999)
+
+            const [kipsOrderToday] = await Promise.all([
+                this.orderRepo
+                    .createQueryBuilder("order")
+                    .select("SUM(order.total)", "totalMoneyDay")
+                    // .addSelect("COUNT(order.)", "totalOrderDay")
+                    .innerJoin("order.company", "company")
+                    .where("company.id = :id", { id: Data.id })
+                    .andWhere("order.created_at BETWEEN :start AND :end", {
+                        start:startOfDay, 
+                        end:finalOfDay
+                    })
+                    .getRawOne()
+            ],
+            )
+            return {
+               kipsOrderToday
+            }
+
+        } catch (err) {
+            console.log(err)
+        }
+
+
+
+
+        //todas query com base na data expecificada, se n definir pega sempre 30 dias antes 
+        //Numeros de pedidos criados
+        //Numero de pedidos cancelados 
+        //Numero de pedidos Pendente
+        //Numero de pedido Concluidos
+        //numero de pedido em rota
+        //Dia que teve mais pedios, "Aqui Conta todo o periodo"
+        // Horário que mais Sai pedidos conta o periodo o por default 30 dias antes
+        //Método de pagamento mais utilizados separar do maior para o menor 
+
     }
 
 
