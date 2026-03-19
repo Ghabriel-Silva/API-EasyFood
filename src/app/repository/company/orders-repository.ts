@@ -192,56 +192,72 @@ class orderRepository {
     }
 
     async getDataOrderDashbord(Data: IDashboardInput) {
-        //Insight do dia atual idependente se vier ou não com data 
-        //Total de pedido Do dia
-        //Lucro total de todos o periodo
-        //valor total de Hoje
-        //Pedidos completos
-        //Pedidos cancelados
-        //Pedidos em rota
-        //Peidos preparando 
-
         try {
             const startOfDay = new Date()
             startOfDay.setHours(0, 0, 0, 0)
             const finalOfDay = new Date()
             finalOfDay.setHours(23, 59, 59, 999)
 
-            const [kipsOrderToday] = await Promise.all([
+            //Dia que teve mais pedios, "Aqui Conta todo o periodo"
+            // Horário que mais Sai pedidos conta o periodo o por default 30 dias antes
+            //Método de pagamento mais utilizados separar do maior para o menor 
+            const [kipsOrderToday, kipsOrderAll, methodoPaymente] = await Promise.all([
                 this.orderRepo
                     .createQueryBuilder("order")
-                    .select("SUM(order.total)", "totalMoneyDay")
-                    // .addSelect("COUNT(order.)", "totalOrderDay")
+                    .select("SUM(order.total)", "totalMoney")
+                    .addSelect("COUNT(order.id)", "totalOrder")
+                    .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "OrderCompleted")
+                    .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "OrderPreparing")
+                    .addSelect("SUM(CASE WHEN order.status = 'Pendente' THEN 1 ELSE 0 END )", "OrderPending ")
+                    .addSelect("SUM(CASE WHEN order.status = 'Cancelado' THEN 1 ELSE 0 END )", "OrderCancelled")
                     .innerJoin("order.company", "company")
                     .where("company.id = :id", { id: Data.id })
                     .andWhere("order.created_at BETWEEN :start AND :end", {
-                        start:startOfDay, 
-                        end:finalOfDay
+                        start: startOfDay,
+                        end: finalOfDay
                     })
-                    .getRawOne()
+                    .getRawOne(),
+
+
+                this.orderRepo
+                    .createQueryBuilder('order')
+                    .select("SUM(CASE WHEN order.status = 'Completo' THEN ORDER.total ELSE 0 END)", "totalMoney")
+                    .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "OrderCompleted")
+                    .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "OrderPreparing")
+                    .addSelect("SUM(CASE WHEN order.status = 'Pendente' THEN 1 ELSE 0 END )", "OrderPending ")
+                    .addSelect("SUM(CASE WHEN order.status = 'Cancelado' THEN 1 ELSE 0 END )", "OrderCancelled")
+                    .innerJoin("order.company", "company")
+                    .where("company.id = :id", { id: Data.id })
+                    .andWhere("order.created_at BETWEEN :start AND :end", {
+                        start: Data.initial,
+                        end: Data.final
+                    })
+                    .getRawOne(),
+
+                this.orderRepo
+                    .createQueryBuilder("order")
+                    .select("order.paymentMethod")
+                    .innerJoin("order.company", "company")
+                    .where("company.id = :id", { id: Data.id })
+                    .andWhere("order.created_at BETWEEN :start AND :end", {
+                        start: Data.initial,
+                        end: Data.final
+                    })
+                    .getRawMany()
+
             ],
+
             )
             return {
-               kipsOrderToday
+                kipsOrderToday,
+                kipsOrderAll,
+                methodoPaymente
+
             }
 
         } catch (err) {
             console.log(err)
         }
-
-
-
-
-        //todas query com base na data expecificada, se n definir pega sempre 30 dias antes 
-        //Numeros de pedidos criados
-        //Numero de pedidos cancelados 
-        //Numero de pedidos Pendente
-        //Numero de pedido Concluidos
-        //numero de pedido em rota
-        //Dia que teve mais pedios, "Aqui Conta todo o periodo"
-        // Horário que mais Sai pedidos conta o periodo o por default 30 dias antes
-        //Método de pagamento mais utilizados separar do maior para o menor 
-
     }
 
 
