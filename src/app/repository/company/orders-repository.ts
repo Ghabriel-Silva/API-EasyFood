@@ -10,9 +10,8 @@ import { Products } from "../../entity/Products"
 import { SetStatusSchemaOrder } from "../../validations/company/order/set-status"
 import { IFilterOrder, IOrderSetStatus } from "../../interfaces/i-orders/i-orders"
 import { FilterOrderSchema } from "../../validations/company/order/filter"
-import { IDashboardInput } from "../../interfaces/i-dashboard/dashbordInput"
-
-
+import { DatesReturn, IDashboardInput, IDataToQueryGetMonthOrder } from "../../interfaces/i-dashboard/dashbordInput"
+import ErrorExtension from "../../utils/error-extension"
 
 class orderRepository {
     private orderRepo: Repository<Order>
@@ -191,6 +190,29 @@ class orderRepository {
         })
     }
 
+    //Essa consulta irá retorna o pedidos do mês, caso a consulta for maior que 30 dias ela retornara pedidos por mês, 
+    async orderMonthQuery(data: IDataToQueryGetMonthOrder): Promise<DatesReturn[]> {
+
+        return await this.orderRepo
+            .createQueryBuilder("order")
+            .select(
+                data.groupBy === "day"
+                    ? "DATE(order.created_at)"
+                    : "DATE_FORMAT(order.created_at, '%Y-%m')",
+                "date"
+            )
+            .addSelect("COUNT(order.id)", "total")
+            .innerJoin("order.company", "company")
+            .where("company.id = :id", { id: data.id })
+            .andWhere("order.created_at >= :start AND order.created_at < :end", {
+                start: data.start,
+                end: data.end
+            })
+            .groupBy("date")
+            .orderBy("date", "ASC")
+            .getRawMany()
+    }
+
     async getDataOrderDashbord(Data: IDashboardInput) {
         try {
             const startOfDay = new Date()
@@ -198,13 +220,11 @@ class orderRepository {
             const finalOfDay = new Date()
             finalOfDay.setHours(23, 59, 59, 999)
 
-            //Dia que teve mais pedios, "Aqui Conta todo o periodo"
-            // Horário que mais Sai pedidos conta o periodo o por default 30 dias antes
-            //Método de pagamento mais utilizados separar do maior para o menor 
+            //Seleciona status e informe como Todas de pedidos dia e valor total dos pedidos completos
             const [kipsOrderToday, kipsOrderAll, methodoPaymente] = await Promise.all([
                 this.orderRepo
                     .createQueryBuilder("order")
-                    .select("SUM(order.total)", "totalMoney")
+                    .select("SUM(CASE WHEN order.status = 'Completo' THEN order.total ELSE 0 END)", "totalMoney")
                     .addSelect("COUNT(order.id)", "totalOrder")
                     .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "OrderCompleted")
                     .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "OrderPreparing")
@@ -218,10 +238,10 @@ class orderRepository {
                     })
                     .getRawOne(),
 
-
+                //Seleciona todos status de pedido porem no periodo defino
                 this.orderRepo
                     .createQueryBuilder('order')
-                    .select("SUM(CASE WHEN order.status = 'Completo' THEN ORDER.total ELSE 0 END)", "totalMoney")
+                    .select("SUM(CASE WHEN order.status = 'Completo' THEN order.total ELSE 0 END)", "totalMoney")
                     .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "OrderCompleted")
                     .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "OrderPreparing")
                     .addSelect("SUM(CASE WHEN order.status = 'Pendente' THEN 1 ELSE 0 END )", "OrderPending ")
@@ -234,29 +254,32 @@ class orderRepository {
                     })
                     .getRawOne(),
 
+                //Seleciona metodo de pagamento e a quantidade 
                 this.orderRepo
                     .createQueryBuilder("order")
-                    .select("order.paymentMethod")
+                    .select("order.paymentMethod", "method")
+                    .addSelect("COUNT(order.paymentMethod)", "quantity")
                     .innerJoin("order.company", "company")
                     .where("company.id = :id", { id: Data.id })
                     .andWhere("order.created_at BETWEEN :start AND :end", {
                         start: Data.initial,
                         end: Data.final
                     })
-                    .getRawMany()
+                    .groupBy("method")
+                    .orderBy("quantity", "DESC")
+                    .getRawMany(),
 
             ],
-
             )
+
             return {
                 kipsOrderToday,
                 kipsOrderAll,
-                methodoPaymente
-
+                methodoPaymente,
             }
 
         } catch (err) {
-            console.log(err)
+            throw new ErrorExtension(500, "Erro ao processar dados do dashboard");
         }
     }
 

@@ -1,10 +1,14 @@
 import { Order } from "../../entity/Order";
 import { myJwtPayload } from "../../interfaces/i-auth/i-auth";
-import { dateInfo, QueryTypeDate } from "../../interfaces/i-dashboard/dashbordInput";
+import { IDataToQueryGetMonthOrder, IDashboardInput, QueryTypeDate, DatesReturn } from "../../interfaces/i-dashboard/dashbordInput";
 import categoryRepository from "../../repository/company/category-repository";
 import orderItemRepository from "../../repository/company/order-item-repository";
 import orderRepository from "../../repository/company/orders-repository";
 import { ProductRepository } from "../../repository/company/product-repository";
+import { dataUser } from "../../utils/dashboard/dataUser";
+import { diffBetweenDates } from "../../utils/dashboard/diffBetweenDates";
+import { generateDates } from "../../utils/dashboard/genereateDates";
+import { orderMonthGenerete } from "../../utils/dashboard/orderMonthGenerete";
 
 
 export default class dashboardService {
@@ -20,34 +24,48 @@ export default class dashboardService {
             this.orderItemRepo = new orderItemRepository()
     }
 
+
     getAllData = async (payloud: myJwtPayload, date: QueryTypeDate) => {
-        const initial = date?.initial
-            ? new Date(`${date.initial}T00:00:00`)
-            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const dataToQuery: IDashboardInput = dataUser(payloud, date)
 
-        const final = date?.final
-            ? new Date(`${date.final}T23:59:59.999`)
-            : new Date();
-
-        if (!date?.initial) {
-            initial.setHours(0, 0, 0, 0);
-        }
-        if (!date?.final) {
-            final.setHours(23, 59, 59, 999);
-        }
-
-        const dataUserAndDate = {
-            ...payloud,
-            initial,
-            final
-        }
-        const productsData = await this.productsRepo.dataDashboard(dataUserAndDate)
-        const orderData = await this.orderRepo.getDataOrderDashbord(dataUserAndDate)
+        const [productsData, orderData, dadosC] = await Promise.all([
+            this.productsRepo.dataDashboard(dataToQuery),
+            this.orderRepo.getDataOrderDashbord(dataToQuery),
+            this.getOrderMonth(payloud, date)
+        ])
 
         return {
             productsData,
-            orderData
+            orderData,
+            dadosC
         }
+    }
+
+
+
+    getOrderMonth = async (payloud: myJwtPayload, data: QueryTypeDate): Promise<DatesReturn[]> => {
+        //aqui retorno o objeto contendo a datas inicial final centralizadas e fallback caso n envie o retorno da data incial sera 30 dias antes, pego o payloud aqui também
+        const dataToQuery: IDashboardInput = dataUser(payloud, data)
+
+        const diffDays = diffBetweenDates(dataToQuery.initial, dataToQuery.final)
+     
+        const groupBy = diffDays.diffDays <= 30 ? "day" : "month"
+
+        //Retornando  o objeto completo para o repository
+        const dataToQueryMonthOrDay: IDataToQueryGetMonthOrder = {
+            ...dataToQuery,
+            ...diffDays,
+            groupBy
+        }
+     
+        const queryMonthOrDay = await this.orderRepo.orderMonthQuery(dataToQueryMonthOrDay)
+    
+        const allDates = generateDates(diffDays.start, diffDays.end, groupBy)
+    
+        const orderGenereteDay = orderMonthGenerete(allDates, queryMonthOrDay)
+    
+       
+        return orderGenereteDay
     }
 
 }
