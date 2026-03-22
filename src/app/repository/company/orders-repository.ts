@@ -213,6 +213,49 @@ class orderRepository {
             .getRawMany()
     }
 
+
+    //Busca informações de order apenas do dia atual
+    async kipsOrderToday(data:IDashboardInput) {
+        return this.orderRepo
+            .createQueryBuilder("order")
+            .select("SUM(CASE WHEN order.status = 'Completo' THEN order.total ELSE 0 END)", "totalMoney")
+            .addSelect("COUNT(order.id)", "totalOrder")
+            .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "OrderCompleted")
+            .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "OrderPreparing")
+            .addSelect("SUM(CASE WHEN order.status = 'Pendente' THEN 1 ELSE 0 END )", "OrderPending ")
+            .addSelect("SUM(CASE WHEN order.status = 'Cancelado' THEN 1 ELSE 0 END )", "OrderCancelled")
+            .innerJoin("order.company", "company")
+            .where("company.id = :id", { id: data.id })
+            .andWhere("order.created_at BETWEEN :start AND :end", {
+                start: data.initial,
+                end: data.final
+            })
+            .getRawOne()
+    }
+
+
+    async kipsOrderAll() {
+
+    }
+
+    async methodoPaymente(data: IDashboardInput) {
+        return this.orderRepo
+            .createQueryBuilder("order")
+            .select("order.paymentMethod", "method")
+            .addSelect("COUNT(order.paymentMethod)", "quantity")
+            .innerJoin("order.company", "company")
+            .where("company.id = :id", { id: data.id })
+            .andWhere("order.created_at BETWEEN :start AND :end", {
+                start: data.initial,
+                end: data.final
+            })
+            .groupBy("method")
+            .orderBy("quantity", "DESC")
+            .getRawMany()
+    }
+
+
+
     async getDataOrderDashbord(Data: IDashboardInput) {
         try {
             const startOfDay = new Date()
@@ -221,22 +264,8 @@ class orderRepository {
             finalOfDay.setHours(23, 59, 59, 999)
 
             //Seleciona status e informe como Todas de pedidos dia e valor total dos pedidos completos
-            const [kipsOrderToday, kipsOrderAll, methodoPaymente] = await Promise.all([
-                this.orderRepo
-                    .createQueryBuilder("order")
-                    .select("SUM(CASE WHEN order.status = 'Completo' THEN order.total ELSE 0 END)", "totalMoney")
-                    .addSelect("COUNT(order.id)", "totalOrder")
-                    .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "OrderCompleted")
-                    .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "OrderPreparing")
-                    .addSelect("SUM(CASE WHEN order.status = 'Pendente' THEN 1 ELSE 0 END )", "OrderPending ")
-                    .addSelect("SUM(CASE WHEN order.status = 'Cancelado' THEN 1 ELSE 0 END )", "OrderCancelled")
-                    .innerJoin("order.company", "company")
-                    .where("company.id = :id", { id: Data.id })
-                    .andWhere("order.created_at BETWEEN :start AND :end", {
-                        start: startOfDay,
-                        end: finalOfDay
-                    })
-                    .getRawOne(),
+            const [ kipsOrderAll] = await Promise.all([
+            
 
                 //Seleciona todos status de pedido porem no periodo defino
                 this.orderRepo
@@ -253,29 +282,11 @@ class orderRepository {
                         end: Data.final
                     })
                     .getRawOne(),
-
-                //Seleciona metodo de pagamento e a quantidade 
-                this.orderRepo
-                    .createQueryBuilder("order")
-                    .select("order.paymentMethod", "method")
-                    .addSelect("COUNT(order.paymentMethod)", "quantity")
-                    .innerJoin("order.company", "company")
-                    .where("company.id = :id", { id: Data.id })
-                    .andWhere("order.created_at BETWEEN :start AND :end", {
-                        start: Data.initial,
-                        end: Data.final
-                    })
-                    .groupBy("method")
-                    .orderBy("quantity", "DESC")
-                    .getRawMany(),
-
             ],
             )
 
             return {
-                kipsOrderToday,
                 kipsOrderAll,
-                methodoPaymente,
             }
 
         } catch (err) {

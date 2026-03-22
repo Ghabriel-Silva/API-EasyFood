@@ -5,7 +5,7 @@ interface DatesTodayI  {
         todayEnd:Date
 }
 
-export const datesToday = ():DatesTodayI => {
+export const datesToday = (): DatesTodayI => {
     const startOfDay = new Date()
     startOfDay.setHours(0, 0, 0, 0)
     const finalOfDay = new Date()
