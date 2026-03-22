@@ -23,26 +23,36 @@ export default class dashboardService {
 
     getAllData = async (payloud: myJwtPayload, date: QueryTypeDate) => {
         const dataToQuery: IDashboardInput = dataUser(payloud, date)
-
-        const [productsData, orderData, orderMonth, orderMethodPayment, orderDataToday] = await Promise.all([
+        const [
+            dashboardProductsSummary,
+            allOrdersSummary,
+            monthlyOrdersSummary,
+            paymentMethodsSummary,
+            todayOrdersSummary
+        ] = await Promise.all([
             this.productsRepo.dataDashboard(dataToQuery),
-
-            this.orderRepo.getDataOrderDashbord(dataToQuery),
+            this.getOrderAll(payloud, date),
             this.getOrderMonth(payloud, date),
             this.getMethodPayment(payloud, date),
             this.getDataToday(payloud)
         ])
         return {
-            productsData,
-            orderData,
-            orderMonth,
-            orderMethodPayment, 
-            orderDataToday
+            dashboardProductsSummary,
+            allOrdersSummary,
+            monthlyOrdersSummary,
+            paymentMethodsSummary,
+            todayOrdersSummary
         }
     }
 
+    //Retorna dados de pedidos do periodo definido, default 30 dias
+    getOrderAll = async (payloud: myJwtPayload, data: QueryTypeDate) => {
+        const dataToQuery: IDashboardInput = dataUser(payloud, data)
+        return await this.orderRepo.getOrderAll(dataToQuery)
+    }
 
 
+    //Retorno dados para o dashbord de pedidos por dia ou mensal se for até 30 dias o retorno sera os pedidos naquele periodo, caso for maior que 30 dias ira retorna o pedidos por mês ex: 01/2026-02/2026
     getOrderMonth = async (payloud: myJwtPayload, data: QueryTypeDate): Promise<DatesReturn[]> => {
         //aqui retorno o objeto contendo a datas inicial final centralizadas e fallback caso n envie o retorno da data incial sera 30 dias antes, pego o payloud aqui também
         const dataToQuery: IDashboardInput = dataUser(payloud, data)
@@ -56,38 +66,27 @@ export default class dashboardService {
             groupBy
         }
 
-        const queryMonthOrDay = await this.orderRepo.orderMonthQuery(dataToQueryMonthOrDay)
+        const queryMonthOrDay = await this.orderRepo.getOrderMonth(dataToQueryMonthOrDay)
         const allDates = generateDates(diffDays.start, diffDays.end, groupBy)
         const orderGenereteDay = orderMonthGenerete(allDates, queryMonthOrDay)
-
-
         return orderGenereteDay
     }
 
-    //Metodo responsavel por Retornar os metodos de pagamento
+    //Esse método retorna os métodos de pagamentos, e a quantidade que cada método de pagamento vou utilizado nas vendas
     getMethodPayment = async (payloud: myJwtPayload, date: QueryTypeDate) => {
         const dataToQuery: IDashboardInput = dataUser(payloud, date)
-
-        const methods = await this.orderRepo.methodoPaymente(dataToQuery)
-
-        return methods
-
+        return await this.orderRepo.getMethodPayment(dataToQuery)
     }
 
 
-    //Retorna dados Rapidos do dia de Atual  apenas
+    //Retorna dados Rapidos do dia de Atual 
     getDataToday = async (payloud: myJwtPayload) => {
         const dateT = datesToday()
-
-        const dataToQuery:IDashboardInput = {
-            ...payloud, 
-            initial:dateT.todayStart, 
-            final:dateT.todayEnd
+        const dataToQuery: IDashboardInput = {
+            ...payloud,
+            initial: dateT.todayStart,
+            final: dateT.todayEnd
         }
-
-        const orderToday = await this.orderRepo.kipsOrderToday(dataToQuery)
-
-        return orderToday
+        return await this.orderRepo.getDataToday(dataToQuery)
     }
-
 }

@@ -173,6 +173,7 @@ class orderRepository {
         return orderFilter
     }
 
+    //Essa consulta pega informações do pedido e retorna info para gerar a nota no backend
     async printOrderId(orderId: string, idCompany: myJwtPayload): Promise<Order | null> {
         return this.orderRepo.findOne({
             where: {
@@ -189,10 +190,25 @@ class orderRepository {
             ]
         })
     }
-
-    //Essa consulta irá retorna o pedidos do mês, caso a consulta for maior que 30 dias ela retornara pedidos por mês, 
-    async orderMonthQuery(data: IDataToQueryGetMonthOrder): Promise<DatesReturn[]> {
-
+    //Busca informações rapidas sobre Pedidos porem no periodo definido por default sempre 30 dias antes
+    async  getOrderAll(data: IDashboardInput) {
+        return this.orderRepo
+            .createQueryBuilder('order')
+            .select("SUM(CASE WHEN order.status = 'Completo' THEN order.total ELSE 0 END)", "totalMoney")
+            .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "OrderCompleted")
+            .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "OrderPreparing")
+            .addSelect("SUM(CASE WHEN order.status = 'Pendente' THEN 1 ELSE 0 END )", "OrderPending ")
+            .addSelect("SUM(CASE WHEN order.status = 'Cancelado' THEN 1 ELSE 0 END )", "OrderCancelled")
+            .innerJoin("order.company", "company")
+            .where("company.id = :id", { id: data.id })
+            .andWhere("order.created_at BETWEEN :start AND :end", {
+                start: data.initial,
+                end: data.final
+            })
+            .getRawOne()
+    }
+    //Essa consulta irá retorna o pedidos do mês, caso a consulta for maior que 30 dias ela retornara pedidos por mês ex: 01/2026 - 02/2026
+    async getOrderMonth(data: IDataToQueryGetMonthOrder): Promise<DatesReturn[]> {
         return await this.orderRepo
             .createQueryBuilder("order")
             .select(
@@ -213,9 +229,25 @@ class orderRepository {
             .getRawMany()
     }
 
+    //Consulta para pegar metodos de pagamento no periodo definido por default sempre 30 dias antes do dia atual
+    async getMethodPayment(data: IDashboardInput) {
+        return this.orderRepo
+            .createQueryBuilder("order")
+            .select("order.paymentMethod", "method")
+            .addSelect("COUNT(order.paymentMethod)", "quantity")
+            .innerJoin("order.company", "company")
+            .where("company.id = :id", { id: data.id })
+            .andWhere("order.created_at BETWEEN :start AND :end", {
+                start: data.initial,
+                end: data.final
+            })
+            .groupBy("method")
+            .orderBy("quantity", "DESC")
+            .getRawMany()
+    }
 
     //Busca informações de order apenas do dia atual
-    async kipsOrderToday(data:IDashboardInput) {
+    async getDataToday(data: IDashboardInput) {
         return this.orderRepo
             .createQueryBuilder("order")
             .select("SUM(CASE WHEN order.status = 'Completo' THEN order.total ELSE 0 END)", "totalMoney")
@@ -234,65 +266,6 @@ class orderRepository {
     }
 
 
-    async kipsOrderAll() {
-
-    }
-
-    async methodoPaymente(data: IDashboardInput) {
-        return this.orderRepo
-            .createQueryBuilder("order")
-            .select("order.paymentMethod", "method")
-            .addSelect("COUNT(order.paymentMethod)", "quantity")
-            .innerJoin("order.company", "company")
-            .where("company.id = :id", { id: data.id })
-            .andWhere("order.created_at BETWEEN :start AND :end", {
-                start: data.initial,
-                end: data.final
-            })
-            .groupBy("method")
-            .orderBy("quantity", "DESC")
-            .getRawMany()
-    }
-
-
-
-    async getDataOrderDashbord(Data: IDashboardInput) {
-        try {
-            const startOfDay = new Date()
-            startOfDay.setHours(0, 0, 0, 0)
-            const finalOfDay = new Date()
-            finalOfDay.setHours(23, 59, 59, 999)
-
-            //Seleciona status e informe como Todas de pedidos dia e valor total dos pedidos completos
-            const [ kipsOrderAll] = await Promise.all([
-            
-
-                //Seleciona todos status de pedido porem no periodo defino
-                this.orderRepo
-                    .createQueryBuilder('order')
-                    .select("SUM(CASE WHEN order.status = 'Completo' THEN order.total ELSE 0 END)", "totalMoney")
-                    .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "OrderCompleted")
-                    .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "OrderPreparing")
-                    .addSelect("SUM(CASE WHEN order.status = 'Pendente' THEN 1 ELSE 0 END )", "OrderPending ")
-                    .addSelect("SUM(CASE WHEN order.status = 'Cancelado' THEN 1 ELSE 0 END )", "OrderCancelled")
-                    .innerJoin("order.company", "company")
-                    .where("company.id = :id", { id: Data.id })
-                    .andWhere("order.created_at BETWEEN :start AND :end", {
-                        start: Data.initial,
-                        end: Data.final
-                    })
-                    .getRawOne(),
-            ],
-            )
-
-            return {
-                kipsOrderAll,
-            }
-
-        } catch (err) {
-            throw new ErrorExtension(500, "Erro ao processar dados do dashboard");
-        }
-    }
 
 
 }
