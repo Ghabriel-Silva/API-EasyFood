@@ -3,17 +3,21 @@ import { Products } from "../../entity/Products";
 import { AppDataSource } from "../../../database/dataSource";
 import { myJwtPayload } from "../../interfaces/i-auth/i-auth";
 import { IProduct, IProductsReturn, IProductStatus } from "../../interfaces/i-product/i-product";
-import { listSchema } from "../../validations/company/product/list";
 import { Company } from "../../entity/Company";
 import { Category } from "../../entity/Category";
+import { listSchema } from "../../validations/company/product/List";
+import { IDashboardInput } from "../../interfaces/i-dashboard/dashbordInput";
+import { OrderItem } from "../../entity/OrderItem";
 
 
 
 export class ProductRepository {
     private productRepository: Repository<Products>
+    private orderItemRepo: Repository<OrderItem>
 
     constructor() {
         this.productRepository = AppDataSource.getRepository(Products)
+        this.orderItemRepo = AppDataSource.getRepository(OrderItem)
     }
 
 
@@ -140,7 +144,6 @@ export class ProductRepository {
 
         const totalPages = limit ? Math.ceil(total / limit) : 1;
 
-
         return {
             data: products,
             frete: frete,
@@ -150,5 +153,81 @@ export class ProductRepository {
             total,
             totalPages
         } as IProductsReturn
+    }
+
+
+    async getKpisProducts(data: IDashboardInput) {
+        return this.productRepository
+            .createQueryBuilder("product")
+            .select("COUNT(product.id)", "total")
+            .addSelect(`SUM(CASE WHEN product.isAvailable = TRUE THEN 1 ELSE 0 END)`, 'active')
+            .addSelect(`SUM(CASE WHEN product.isAvailable = FALSE THEN 1 ELSE 0 END)`, "inactive")
+            .addSelect(`SUM(CASE WHEN product.quantity = 0 THEN 1 ELSE 0 END)`, "negative_quantity")
+            .where("product.company_id = :id", { id: data.id })
+            .getRawOne()
+    }
+
+    async getQuantityZeroProducts(data: IDashboardInput) {
+        return this.productRepository
+            .createQueryBuilder("product")
+            .select("product.id", "id")
+            .addSelect("product.name", "name")
+            .addSelect("product.uni_medida", "uni_medida")
+            .addSelect("product.quantity", "quantity")
+            .addSelect("product.updated_at", "updatedAt")
+            .addSelect("product. created_at", "createdAt")
+            .where("product.company_id = :companyId", { companyId: data.id })
+            .andWhere('product.quantity = 0 AND product.isAvailable = TRUE')
+            .getRawMany()
+    }
+
+    async getTopProducts(data: IDashboardInput) {
+        return this.orderItemRepo
+            .createQueryBuilder("item")
+            .select("product.id", "id")
+            .addSelect("product.name", "name")
+            .addSelect("product.uni_medida", "unidade")
+            .addSelect("SUM(item.quantity)", "totalSold")
+            .innerJoin("item.product", "product")
+            .innerJoin("item.order", "order")
+            .where("product.company_id = :companyId", { companyId: data.id })
+            .andWhere("order.created_at BETWEEN :start AND :end", {
+                start: data.initial,
+                end: data.final
+            })
+            .groupBy("product.id")
+            .orderBy("totalSold", "DESC")
+            .limit(5)
+            .getRawMany()
+    }
+
+    async getLowProducts(data: IDashboardInput) {
+        return this.orderItemRepo
+            .createQueryBuilder("item")
+            .select("product.id", "id")
+            .addSelect("product.name", "name")
+            .addSelect("product.uni_medida", "unidade")
+            .addSelect("SUM(item.quantity)", "totalSold")
+            .innerJoin("item.product", "product")
+            .innerJoin("item.order", "order")
+            .where("product.company_id = :companyId", { companyId: data.id })
+            .andWhere("order.created_at BETWEEN :start AND :end", {
+                start: data.initial,
+                end: data.final
+            })
+            .groupBy("product.id")
+            .orderBy("totalSold", "ASC")
+            .limit(5)
+            .getRawMany()
+    }
+
+    async dataDashboard(data: IDashboardInput) {
+        const [kipsProducts, quantityZeroProducts, topProducts, lowProducts] = await Promise.all([
+            this.getKpisProducts(data),
+            this.getQuantityZeroProducts(data),
+            this.getTopProducts(data),
+            this.getLowProducts(data)
+        ])
+        return { kipsProducts, quantityZeroProducts, topProducts, lowProducts }
     }
 }

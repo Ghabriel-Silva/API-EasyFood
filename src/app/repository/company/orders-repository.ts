@@ -10,8 +10,8 @@ import { Products } from "../../entity/Products"
 import { SetStatusSchemaOrder } from "../../validations/company/order/set-status"
 import { IFilterOrder, IOrderSetStatus } from "../../interfaces/i-orders/i-orders"
 import { FilterOrderSchema } from "../../validations/company/order/filter"
-
-
+import { DatesReturn, IDashboardInput, IDataToQueryGetMonthOrder } from "../../interfaces/i-dashboard/dashbordInput"
+import ErrorExtension from "../../utils/error-extension"
 
 class orderRepository {
     private orderRepo: Repository<Order>
@@ -173,21 +173,99 @@ class orderRepository {
         return orderFilter
     }
 
-    async printOrderId(orderId: string, idCompany:myJwtPayload): Promise<Order | null> {
+    //Essa consulta pega informações do pedido e retorna info para gerar a nota no backend
+    async printOrderId(orderId: string, idCompany: myJwtPayload): Promise<Order | null> {
         return this.orderRepo.findOne({
-            where: { id: orderId ,
-            company: {
-                id: idCompany.id
-            }
-            }, 
+            where: {
+                id: orderId,
+                company: {
+                    id: idCompany.id
+                }
+            },
             relations: [
                 'company',
                 'items',
                 'items.product'
-                
+
             ]
         })
     }
+    //Busca informações rapidas sobre Pedidos porem no periodo definido por default sempre 30 dias antes
+    async  getOrderAll(data: IDashboardInput) {
+        return this.orderRepo
+            .createQueryBuilder('order')
+            .select("SUM(CASE WHEN order.status = 'Completo' THEN order.total ELSE 0 END)", "totalMoney")
+            .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "orderCompleted")
+            .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "orderPreparing")
+            .addSelect("SUM(CASE WHEN order.status = 'Pendente' THEN 1 ELSE 0 END )", "orderPending")
+            .addSelect("SUM(CASE WHEN order.status = 'Cancelado' THEN 1 ELSE 0 END )", "orderCancelled")
+            .innerJoin("order.company", "company")
+            .where("company.id = :id", { id: data.id })
+            .andWhere("order.created_at BETWEEN :start AND :end", {
+                start: data.initial,
+                end: data.final
+            })
+            .getRawOne()
+    }
+    //Essa consulta irá retorna o pedidos do mês, caso a consulta for maior que 30 dias ela retornara pedidos por mês ex: 01/2026 - 02/2026
+    async getOrderMonth(data: IDataToQueryGetMonthOrder): Promise<DatesReturn[]> {
+        return await this.orderRepo
+            .createQueryBuilder("order")
+            .select(
+                data.groupBy === "day"
+                    ? "DATE(order.created_at)"
+                    : "DATE_FORMAT(order.created_at, '%Y-%m')",
+                "date"
+            )
+            .addSelect("COUNT(order.id)", "total")
+            .innerJoin("order.company", "company")
+            .where("company.id = :id", { id: data.id })
+            .andWhere("order.created_at >= :start AND order.created_at < :end", {
+                start: data.start,
+                end: data.end
+            })
+            .groupBy("date")
+            .orderBy("date", "ASC")
+            .getRawMany()
+    }
+
+    //Consulta para pegar metodos de pagamento no periodo definido por default sempre 30 dias antes do dia atual
+    async getMethodPayment(data: IDashboardInput) {
+        return this.orderRepo
+            .createQueryBuilder("order")
+            .select("order.paymentMethod", "method")
+            .addSelect("COUNT(order.paymentMethod)", "quantity")
+            .innerJoin("order.company", "company")
+            .where("company.id = :id", { id: data.id })
+            .andWhere("order.created_at BETWEEN :start AND :end", {
+                start: data.initial,
+                end: data.final
+            })
+            .groupBy("method")
+            .orderBy("quantity", "DESC")
+            .getRawMany()
+    }
+
+    //Busca informações de order apenas do dia atual
+    async getDataToday(data: IDashboardInput) {
+        return this.orderRepo
+            .createQueryBuilder("order")
+            .select("SUM(CASE WHEN order.status = 'Completo' THEN order.total ELSE 0 END)", "totalMoney")
+            .addSelect("COUNT(order.id)", "totalOrder")
+            .addSelect("SUM(CASE WHEN order.status = 'Completo' THEN 1 ELSE 0 END )", "orderCompleted")
+            .addSelect("SUM(CASE WHEN order.status = 'Preparando' THEN 1 ELSE 0 END )", "orderPreparing")
+            .addSelect("SUM(CASE WHEN order.status = 'Pendente' THEN 1 ELSE 0 END )", "orderPending ")
+            .addSelect("SUM(CASE WHEN order.status = 'Cancelado' THEN 1 ELSE 0 END )", "orderCancelled")
+            .innerJoin("order.company", "company")
+            .where("company.id = :id", { id: data.id })
+            .andWhere("order.created_at BETWEEN :start AND :end", {
+                start: data.initial,
+                end: data.final
+            })
+            .getRawOne()
+    }
+
+
 
 
 }
