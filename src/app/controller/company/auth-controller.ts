@@ -26,13 +26,13 @@ class AuthUser {
             if (data) {
                 res.cookie("token", data.token, {
                     httpOnly: true,
-                    secure:true,
-                    sameSite: "none", 
+                    secure: true,
+                    sameSite: "none",
                     maxAge: 3600000,
                 })
                 res.status(201).json(
                     SuccessResponse<ILoginResponse>(
-                        null,
+                        data,
                         null,
                         `Bem vindo de novo ${data.user.name}`
                     )
