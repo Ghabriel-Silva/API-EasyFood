@@ -26,10 +26,10 @@ class AuthUser {
             if (data) {
                 res.cookie("token", data.token, {
                     httpOnly: true,
-                    secure: false, // DEVE estar true em produção 
-                    sameSite: "lax",
-                    maxAge: 3600000, // 1 hora
-                });
+                    secure: process.env.NODE_ENV === "production", 
+                    sameSite: "none", 
+                    maxAge: 3600000,
+                })
                 res.status(201).json(
                     SuccessResponse<ILoginResponse>(
                         null,
