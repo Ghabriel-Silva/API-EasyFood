@@ -7,6 +7,9 @@ import { datesToday } from "../../utils/dashboard/datesToday";
 import { diffBetweenDates } from "../../utils/dashboard/diffBetweenDates";
 import { generateDates } from "../../utils/dashboard/genereateDates";
 import { orderMonthGenerete } from "../../utils/dashboard/orderMonthGenerete";
+import ErrorExtension from "../../utils/error-extension";
+import { dashboardDateSchema, dashboardDateType } from "../../validations/company/dashbord/filter";
+import * as yup from "yup";
 
 
 export default class dashboardService {
@@ -22,71 +25,99 @@ export default class dashboardService {
 
 
     getAllData = async (payloud: myJwtPayload, date: QueryTypeDate) => {
-        const dataToQuery: IDashboardInput = dataUser(payloud, date)
-        const [
-            dashboardProductsSummary,
-            allOrdersSummary,
-            monthlyOrdersSummary,
-            paymentMethodsSummary,
-            todayOrdersSummary
-        ] = await Promise.all([
-            this.productsRepo.dataDashboard(dataToQuery),
-            this.getOrderAll(payloud, date),
-            this.getOrderMonth(payloud, date),
-            this.getMethodPayment(payloud, date),
-            this.getDataToday(payloud)
-        ])
-        return {
-            dashboardProductsSummary,
-            allOrdersSummary,
-            monthlyOrdersSummary,
-            paymentMethodsSummary,
-            todayOrdersSummary
+        try {
+            console.log(date)
+            const validadeDate = await dashboardDateSchema.validate(date, {
+                abortEarly: false
+            })
+
+            const formatToString = (d: Date | null | undefined): string | undefined => {
+                if (!d || isNaN(d.getTime())) return undefined
+                return d.toISOString().split('T')[0]
+            }
+
+            const dateStringFormat = {
+                initial: formatToString(validadeDate.initial),
+                final: formatToString(validadeDate.final)
+            }
+
+            const dataToQuery: IDashboardInput = dataUser(payloud, dateStringFormat)
+
+            const [
+                dashboardProductsSummary,
+                allOrdersSummary,
+                monthlyOrdersSummary,
+                paymentMethodsSummary,
+                todayOrdersSummary
+            ] = await Promise.all([
+                this.productsRepo.dataDashboard(dataToQuery),
+                this.getOrderAll(payloud, dateStringFormat),
+                this.getOrderMonth(payloud, dateStringFormat),
+                this.getMethodPayment(payloud, dateStringFormat),
+                this.getDataToday(payloud)
+            ])
+            return {
+                dashboardProductsSummary,
+                allOrdersSummary,
+                monthlyOrdersSummary,
+                paymentMethodsSummary,
+                todayOrdersSummary
+            }
+        } catch (err) {
+            if (err instanceof yup.ValidationError) {
+                throw new ErrorExtension(400, err.errors.join(","));
+            }
+            throw err;
         }
     }
 
-    //Retorna dados de pedidos do periodo definido, default 30 dias
     getOrderAll = async (payloud: myJwtPayload, data: QueryTypeDate) => {
-        const dataToQuery: IDashboardInput = dataUser(payloud, data)
-        return await this.orderRepo.getOrderAll(dataToQuery)
+        try {
+            const dataToQuery: IDashboardInput = dataUser(payloud, data)
+            return await this.orderRepo.getOrderAll(dataToQuery)
+        } catch (error) {
+            throw new ErrorExtension(500, 'Erro ao buscar pedidos do período')
+        }
     }
 
-
-    //Retorno dados para o dashbord de pedidos por dia ou mensal se for até 30 dias o retorno sera os pedidos naquele periodo, caso for maior que 30 dias ira retorna o pedidos por mês ex: 01/2026-02/2026
     getOrderMonth = async (payloud: myJwtPayload, data: QueryTypeDate): Promise<DatesReturn[]> => {
-        //aqui retorno o objeto contendo a datas inicial final centralizadas e fallback caso n envie o retorno da data incial sera 30 dias antes, pego o payloud aqui também
-        const dataToQuery: IDashboardInput = dataUser(payloud, data)
-        const diffDays = diffBetweenDates(dataToQuery.initial, dataToQuery.final)
-        const groupBy = diffDays.diffDays <= 30 ? "day" : "month"
-
-        //Retornando  o objeto completo para o repository
-        const dataToQueryMonthOrDay: IDataToQueryGetMonthOrder = {
-            ...dataToQuery,
-            ...diffDays,
-            groupBy
+        try {
+            const dataToQuery: IDashboardInput = dataUser(payloud, data)
+            const diffDays = diffBetweenDates(dataToQuery.initial, dataToQuery.final)
+            const groupBy = diffDays.diffDays <= 30 ? "day" : "month"
+            const dataToQueryMonthOrDay: IDataToQueryGetMonthOrder = {
+                ...dataToQuery,
+                ...diffDays,
+                groupBy
+            }
+            const queryMonthOrDay = await this.orderRepo.getOrderMonth(dataToQueryMonthOrDay)
+            const allDates = generateDates(diffDays.start, diffDays.end, groupBy)
+            return orderMonthGenerete(allDates, queryMonthOrDay)
+        } catch (error) {
+            throw new ErrorExtension(500, 'Erro ao buscar pedidos por período/mês')
         }
-
-        const queryMonthOrDay = await this.orderRepo.getOrderMonth(dataToQueryMonthOrDay)
-        const allDates = generateDates(diffDays.start, diffDays.end, groupBy)
-        const orderGenereteDay = orderMonthGenerete(allDates, queryMonthOrDay)
-        return orderGenereteDay
     }
 
-    //Esse método retorna os métodos de pagamentos, e a quantidade que cada método de pagamento vou utilizado nas vendas
     getMethodPayment = async (payloud: myJwtPayload, date: QueryTypeDate) => {
-        const dataToQuery: IDashboardInput = dataUser(payloud, date)
-        return await this.orderRepo.getMethodPayment(dataToQuery)
+        try {
+            const dataToQuery: IDashboardInput = dataUser(payloud, date)
+            return await this.orderRepo.getMethodPayment(dataToQuery)
+        } catch (error) {
+            throw new ErrorExtension(500, 'Erro ao buscar métodos de pagamento')
+        }
     }
 
-
-    //Retorna dados Rapidos do dia de Atual 
     getDataToday = async (payloud: myJwtPayload) => {
-        const dateT = datesToday()
-        const dataToQuery: IDashboardInput = {
-            ...payloud,
-            initial: dateT.todayStart,
-            final: dateT.todayEnd
+        try {
+            const dateT = datesToday()
+            const dataToQuery: IDashboardInput = {
+                ...payloud,
+                initial: dateT.todayStart,
+                final: dateT.todayEnd
+            }
+            return await this.orderRepo.getDataToday(dataToQuery)
+        } catch (error) {
+            throw new ErrorExtension(500, 'Erro ao buscar dados de hoje')
         }
-        return await this.orderRepo.getDataToday(dataToQuery)
     }
 }
