@@ -14,7 +14,7 @@ app.use(cookieParser());
 
 app.use(cors({
     origin: [
-        "heasyfood-api-production.up.railway.app",
+        "easy-food-web-h2ip-git-vercel-ec516a-gabriels-projects-306bc07f.vercel.app",
     ],
     credentials: true,
 }))
