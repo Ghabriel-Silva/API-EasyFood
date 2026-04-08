@@ -14,9 +14,9 @@ app.use(cookieParser());
 
 app.use(cors({
     origin: [
-        "https://easy-food-web-jpcc-git-main-gabriels-projects-306bc07f.vercel.app/login"
-    ],
-    credentials: true,
+        "https://easy-food-web-jpcc.vercel.app",
+        "http://localhost:3000" 
+    ]
 }))
 
 app.use(routers)
